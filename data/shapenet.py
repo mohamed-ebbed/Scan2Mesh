@@ -13,7 +13,7 @@ class ShapeNet(torch.utils.data.Dataset):
 
     num_classes = 8
 
-    def __init__(self, sdf_path, meshes_path, class_mapping, split, threshold):
+    def __init__(self, sdf_path, meshes_path, class_mapping, split, threshold, num_trajectories):
 
         super().__init__()
         self.sdf_path = sdf_path
@@ -28,6 +28,9 @@ class ShapeNet(torch.utils.data.Dataset):
         self.items = Path(f"data/splits/shapenet/{split}.txt").read_text().splitlines()  # keep track of shapes based on split
 
         self.threshold = threshold
+
+        self.num_trajectories = num_trajectories
+
 
     def __getitem__(self, index):
 
@@ -55,6 +58,20 @@ class ShapeNet(torch.utils.data.Dataset):
         input_sdf = np.expand_dims(input_sdf, 0)
 
         sign = np.sign(input_sdf)
+
+        target_edges = np.zeros((self.threshold, self.threshold))
+        edges_adj = np.ones((self.threshold, self.threshold,1))
+
+        for edge in edges:
+            target_edges[edge[0],edge[1]] = 1
+            target_edges[edge[1],edge[0]] = 1
+
+        for i in range(int(sum(mask)), self.threshold):
+
+            for j in range(int(sum(mask)), self.threshold):
+
+                target_edges[i,j] = -1
+                target_edges[j,i] = -1
     
 
         input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)
@@ -65,8 +82,8 @@ class ShapeNet(torch.utils.data.Dataset):
             'input_sdf': input_sdf,
             'target_vertices': vertices,
             'input_mask': mask,
-            #'target_faces': faces,
-            #'target_edges': edges
+            'target_edges': target_edges,
+            'edges_adj': edges_adj,
         }
 
     def __len__(self):
@@ -78,8 +95,8 @@ class ShapeNet(torch.utils.data.Dataset):
         batch['input_sdf'] = batch['input_sdf'].to(device)
         batch['target_vertices'] = batch['target_vertices'].to(device)
         batch['input_mask'] = batch['input_mask'].to(device)
-       # batch['target_faces'] = batch['target_faces'].to(device)
-        #batch['target_edges'] = batch['target_edges'].to(device)
+        batch['target_edges'] = batch['target_edges'].to(device)
+        batch['edges_adj'] = batch['edges_adj'].to(device)
 
     def get_shape_sdf(self,shapenet_id):
         sdf = None
@@ -167,9 +184,9 @@ class ShapeNet(torch.utils.data.Dataset):
 
         for i in range(len(thresholds)):
 
-            print("For threshold {} num of images {}".format(thresholds[i], stats[i]))
+            print("For threshold {} num of shapes {}".format(thresholds[i], stats[i]))
 
-        print("{} images were not found".format(len(not_found)))
+        print("{} shapes were not found".format(len(not_found)))
 
 
         return stats, not_found
@@ -188,7 +205,12 @@ class ShapeNet(torch.utils.data.Dataset):
 
         for index in tqdm.trange(len(self.items)):
 
+
             sdf_id = self.items[index].split()[0]
+            trajectory = int(sdf_id.split("__")[1])
+            if trajectory >= self.num_trajectories:
+                continue
+
             shapenet_id = sdf_id[:sdf_id.find("_")]
 
             class_id = shapenet_id.split("/")[0]

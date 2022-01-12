@@ -50,8 +50,8 @@ class VertixModel(nn.Module):
         x = self.conv_layers_1(x)
         f2 = x
         x = self.conv_layers_2(x)
-        x = x.view(-1,256)
+        x = x.reshape(-1,256)
         x = self.linear_layers(x)
-        x = x.view(-1,self.output_size, 3)
+        x = x.reshape(-1,self.output_size, 3)
 
         return x, f2

@@ -1,30 +1,29 @@
+import torch
+
 import torch.nn as nn
 
 class NodeToEdge(nn.Module):
-    def __init__(self, v1s_idx, v2s_idx):
+    def __init__(self):
         super(NodeToEdge, self).__init__()
-        self.v1s_idx = v1s_idx
-        self.v2s_idx = v2s_idx
 
-    def forward(self, hv):
+    def forward(self, hv, v1s_idx, v2s_idx):
 
         batch_size, num_vertices, _ = hv.shape
 
-        v1s = hv[:,self.v1s_idx]
+        v1s = hv[:,v1s_idx]
 
-        v2s = hv[:,self.v2s_idx]
+        v2s = hv[:,v2s_idx]
 
         vertices_concat = torch.cat([v1s,v2s], axis=-1).reshape(batch_size, num_vertices, num_vertices, -1)
 
         return vertices_concat
 
 class EdgeToNode(nn.Module):
-    def __init__(self, adj):
+    def __init__(self):
         super(EdgeToNode, self).__init__()
-        self.adj = adj
 
-    def forward(self, he):
+    def forward(self, he, adj):
 
-        hv = torch.sum(he*self.adj, axis=-2)
+        hv = torch.sum(he*adj, axis=-2)
         
         return hv

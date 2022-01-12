@@ -43,7 +43,7 @@ class FaceModel(nn.Module):
             nn.ELU(),
             nn.Linear(feature_size,feature_size),
             nn.ELU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.5)
 
         )
 
