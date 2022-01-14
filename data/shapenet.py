@@ -77,28 +77,19 @@ class ShapeNet(torch.utils.data.Dataset):
 
         input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)
 
-
-        return {
-            'name': f'{sdf_id}-{shape_id}',
-            'input_sdf': input_sdf,
-            'target_vertices': vertices,
-            'input_mask': mask,
-            'target_edges': target_edges,
-            'edges_adj': edges_adj,
-            #'faces': faces
-        }
+        return input_sdf, vertices, mask, target_edges, edges_adj
 
     def __len__(self):
         return len(self.items)
 
 
-    @staticmethod
-    def move_batch_to_device(batch, device):
-        batch['input_sdf'] = batch['input_sdf'].to(device)
-        batch['target_vertices'] = batch['target_vertices'].to(device)
-        batch['input_mask'] = batch['input_mask'].to(device)
-        batch['target_edges'] = batch['target_edges'].to(device)
-        batch['edges_adj'] = batch['edges_adj'].to(device)
+    # @staticmethod
+    # def move_batch_to_device(batch, device):
+    #     batch['input_sdf'] = batch['input_sdf'].to(device)
+    #     batch['target_vertices'] = batch['target_vertices'].to(device)
+    #     batch['input_mask'] = batch['input_mask'].to(device)
+    #     batch['target_edges'] = batch['target_edges'].to(device)
+    #     batch['edges_adj'] = batch['edges_adj'].to(device)
 
     def get_shape_sdf(self,shapenet_id):
         sdf = None

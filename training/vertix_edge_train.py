@@ -12,6 +12,8 @@ from pytorch3d.loss import chamfer_distance
 
 import pickle
 
+import gc
+
 def train(model, train_dataloader, val_dataloader, device, config):
 
 
@@ -52,19 +54,23 @@ def train(model, train_dataloader, val_dataloader, device, config):
     for epoch in range(config['max_epochs']):
         for batch_idx, batch in enumerate(train_dataloader):
             # Move batch to device, set optimizer gradients to zero, perform forward pass
-            ShapeNet.move_batch_to_device(batch, device)
-            optimizer.zero_grad()
-            mask = batch["input_mask"]
 
-            vertices , edges = model(batch['input_sdf'].float(), mask, x_indices, y_indices, batch['edges_adj'].float())
+            input_sdf, target_vertices, mask, target_edges, edges_adj = batch
+
+            input_sdf = input_sdf.to(config["device"])
+            target_vertices = target_vertices.to(config["device"])
+            mask = mask.to(config["device"])
+            target_edges = target_edges.to(config["device"])
+            edges_adj = edges_adj.to(config["device"])
+
+            optimizer.zero_grad()
+
+            vertices , edges = model(input_sdf.float(), mask, x_indices, y_indices, edges_adj.float())
 
 
             # Mask out known regions -- only use loss on reconstructed, previously unknown regions
             ###
             
-            target_vertices = batch['target_vertices']
-            target_edges = batch['target_edges']
-
             target_vertices[mask != 1] = 0
 
             # Compute loss, Compute gradients, Update network parameters
@@ -108,17 +114,20 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 
 
                 for batch_val in val_dataloader:
-                    ShapeNet.move_batch_to_device(batch_val, device)
+
+                    input_sdf, target_vertices, mask, target_edges, edges_adj = batch_val
+
+                    input_sdf = input_sdf.to(config["device"])
+                    target_vertices = target_vertices.to(config["device"])
+                    mask = mask.to(config["device"])
+                    target_edges = target_edges.to(config["device"])
+                    edges_adj = edges_adj.to(config["device"])
 
                     with torch.no_grad():
 
-                        mask = batch_val["input_mask"]
-
                         
-                        vertices , edges = model(batch_val['input_sdf'].float(), mask, x_indices, y_indices, batch_val['edges_adj'].float())
+                        vertices , edges = model(input_sdf.float(), mask, x_indices, y_indices, edges_adj.float())
 
-                        target_vertices = batch_val['target_vertices']
-                        target_edges = batch_val['target_edges']
 
 
                     loss_vertices = vertix_loss(vertices, target_vertices)
@@ -143,7 +152,10 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 # Set model back to train
                 model.train()
 
+                gc.collect()
+
         scheduler.step()
+
 
 
 def main(config):
@@ -174,7 +186,7 @@ def main(config):
         train_dataset,   # Datasets return data one sample at a time; Dataloaders use them and aggregate samples into batches
         batch_size=config['batch_size'],   # The size of batches is defined here
         shuffle=True,    # Shuffling the order of samples is useful during training to prevent that the network learns to depend on the order of the input data
-        num_workers=2,   # Data is usually loaded in parallel by num_workers
+        num_workers=0,   # Data is usually loaded in parallel by num_workers
         pin_memory=True,  # This is an implementation detail to speed up data uploading to the GPU
         # worker_init_fn=train_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )
@@ -197,7 +209,7 @@ def main(config):
         val_dataset,     # Datasets return data one sample at a time; Dataloaders use them and aggregate samples into batches
         batch_size=config["batch_size"],   # The size of batches is defined here
         shuffle=False,   # During validation, shuffling is not necessary anymore
-        num_workers=2,   # Data is usually loaded in parallel by num_workers
+        num_workers=0,   # Data is usually loaded in parallel by num_workers
         pin_memory=True,  # This is an implementation detail to speed up data uploading to the GPU
         # worker_init_fn=val_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )
@@ -206,7 +218,7 @@ def main(config):
     model = VertixEdge(config["num_vertices"], config["feature_size"])
 
     # Load model if resuming from checkpoint
-    if config['resume_ckpt'] is not None:
+    if config['resume_ckpt'] is not False:
         model.load_state_dict(torch.load(config['resume_ckpt'], map_location='cpu'))
 
     # Move model to specified device
