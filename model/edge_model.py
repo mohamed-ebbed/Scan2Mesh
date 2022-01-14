@@ -61,11 +61,10 @@ class EdgeModel(nn.Module):
 
         self.stage3 = nn.Sequential(
             nn.Linear(feature_size*3,feature_size),
-            nn.BatchNorm1d(feature_size),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(feature_size,feature_size),
             nn.BatchNorm1d(feature_size),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(feature_size,2)
         )
 
@@ -110,6 +109,7 @@ class EdgeModel(nn.Module):
 
 
         v_features = self.mlp_v(vertices_reshaped)
+
         f2_features = self.mlp_f2(f2_extracted)
 
         vertix_features = torch.cat([v_features,f2_features], axis=-1)

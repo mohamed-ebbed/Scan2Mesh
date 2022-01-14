@@ -8,12 +8,16 @@ from data.shapenet import ShapeNet
 
 from pytorch3d.loss import chamfer_distance
 
+import torch.nn as nn
+
+from scipy.optimize import linear_sum_assignment
+
 def train(model, train_dataloader, val_dataloader, device, config):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
 
     # Here, we follow the original implementation to also use a learning rate scheduler -- it simply reduces the learning rate to half every 20 epochs
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+    #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
     # Set model to train
     model.train()
@@ -23,7 +27,12 @@ def train(model, train_dataloader, val_dataloader, device, config):
     # Keep track of running average of train loss for printing
     train_loss_running = 0.
 
+    vertix_loss = nn.L1Loss()
+
+
     for epoch in range(config['max_epochs']):
+        train_loss_running = 0.
+
         for batch_idx, batch in enumerate(train_dataloader):
             # Move batch to device, set optimizer gradients to zero, perform forward pass
             ShapeNet.move_batch_to_device(batch, device)
@@ -36,24 +45,46 @@ def train(model, train_dataloader, val_dataloader, device, config):
             
             target = batch['target_vertices']
 
-            target[mask != 1] = 0
-            vertices[mask != 1] = 0
+            #target[mask != 1] = 0
 
             # Compute loss, Compute gradients, Update network parameters
             #########
-            loss = chamfer_distance(vertices, target, x_lengths=mask.sum(axis=-1).long(), y_lengths=mask.sum(axis=-1).long())[0]
 
-            loss.backward()
+            batch_loss = 0
+
+    
+            for b in range(mask.shape[0]):
+                target_size = int(mask[b].sum())
+
+                cost = np.zeros((target_size, config["num_vertices"]))
+                
+                for i in range(target_size):
+                    for j in range(config["num_vertices"]):
+                        distance = torch.norm(target[b,i] - vertices[b,j])
+                        cost[i][j] = distance
+
+                target_idx, vertix_idx = linear_sum_assignment(cost)
+
+                loss = vertix_loss(vertices[b,vertix_idx], target[b, target_idx])
+
+                batch_loss += loss
+
+            batch_loss /= config["batch_size"]
+
+            batch_loss.backward()
+
+            #loss = vertix_loss(vertices,target)
+
             
             optimizer.step()
 
             # Logging
-            train_loss_running += loss.item()
+            train_loss_running += batch_loss.item()
             iteration = epoch * len(train_dataloader) + batch_idx
 
             if iteration % config['print_every_n'] == (config['print_every_n'] - 1):
                 print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}')
-                train_loss_running = 0.
+                train_loss_running=0
 
             # Validation evaluation and logging
             if iteration % config['validate_every_n'] == (config['validate_every_n'] - 1):
@@ -62,13 +93,13 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                 # Evaluation on entire validation set
                 loss_val = 0.
+                num_shapes = 0
                 for batch_val in val_dataloader:
                     ShapeNet.move_batch_to_device(batch_val, device)
 
                     with torch.no_grad():
                         
                         vertices , _ = model(batch_val['input_sdf'].float())
-
 
                         # Transform back to metric space
                         # We perform our validation with a pure l1 loss in metric space for better comparability
@@ -78,12 +109,42 @@ def train(model, train_dataloader, val_dataloader, device, config):
                         # Mask out known regions -- only report loss on reconstructed, previously unknown regions
                         mask = batch_val["input_mask"]
 
-                        target[mask != 1] = 0
-                        vertices[mask != 1] = 0
+                        #target[mask != 1] = 0
 
-                    loss_val += chamfer_distance(vertices, target, x_lengths=mask.sum(axis=-1).long(), y_lengths=mask.sum(axis=-1).long())[0]
+                    batch_loss = 0
 
-                loss_val /= len(val_dataloader)
+                    target_size = int(mask.sum())
+
+                
+                    for b in range(mask.shape[0]):
+                        
+                        target_size = int(mask[b].sum())
+
+
+                        cost = np.zeros((target_size, config["num_vertices"]))
+                        
+                        for i in range(target_size):
+                            for j in range(config["num_vertices"]):
+                                distance = torch.norm(target[b,i] - vertices[b,j])
+                                cost[i][j] = distance
+
+                        target_idx, vertix_idx = linear_sum_assignment(cost)
+
+                        loss = vertix_loss(vertices[b,vertix_idx], target[b, target_idx])
+
+                        batch_loss += loss
+
+                    #batch_loss /= config["batch_size"]
+
+                    #loss_val += chamfer_distance(vertices, target, x_lengths=mask.sum(axis=-1).long(), y_lengths=mask.sum(axis=-1).long())[0]
+
+
+                    loss_val += batch_loss
+
+                    num_shapes += vertices.shape[0]
+
+                loss_val /= num_shapes
+
                 if loss_val < best_loss_val:
                     torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_best.ckpt')
                     best_loss_val = loss_val
@@ -93,7 +154,7 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 # Set model back to train
                 model.train()
 
-        scheduler.step()
+        #scheduler.step()
 
 
 def main(config):
@@ -106,7 +167,7 @@ def main(config):
 
 
     # Create Dataloaders
-    train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"])
+    train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
 
     train_dataset.filter_data()
 
@@ -122,7 +183,7 @@ def main(config):
         # worker_init_fn=train_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )
 
-    val_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "val" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"])
+    val_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "val" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories = config["num_trajectories"])
 
     val_dataset.filter_data()
 

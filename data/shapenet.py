@@ -49,7 +49,6 @@ class ShapeNet(torch.utils.data.Dataset):
         steps=np.linspace(-1,1,32)
         grid = np.meshgrid(steps, steps, steps, indexing="ij")
 
-        coordinates = np.zeros((32,32,32))
         
         xs = np.expand_dims(grid[0],0)
         ys = np.expand_dims(grid[1],0)
@@ -62,16 +61,18 @@ class ShapeNet(torch.utils.data.Dataset):
         target_edges = np.zeros((self.threshold, self.threshold))
         edges_adj = np.ones((self.threshold, self.threshold,1))
 
-        for edge in edges:
-            target_edges[edge[0],edge[1]] = 1
-            target_edges[edge[1],edge[0]] = 1
+        for face in faces:
+            target_edges[face[0],face[1]] = 1
+            target_edges[face[1],face[2]] = 1
+            target_edges[face[2],face[0]] = 1
 
-        for i in range(int(sum(mask)), self.threshold):
 
-            for j in range(int(sum(mask)), self.threshold):
+        # for i in range(int(sum(mask)), self.threshold):
 
-                target_edges[i,j] = -1
-                target_edges[j,i] = -1
+        #     for j in range(int(sum(mask)), self.threshold):
+
+        #         target_edges[i,j] = -1
+        #         target_edges[j,i] = -1
     
 
         input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)
@@ -84,6 +85,7 @@ class ShapeNet(torch.utils.data.Dataset):
             'input_mask': mask,
             'target_edges': target_edges,
             'edges_adj': edges_adj,
+            #'faces': faces
         }
 
     def __len__(self):
