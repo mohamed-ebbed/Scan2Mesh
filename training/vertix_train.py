@@ -6,8 +6,6 @@ import torch
 from model.vertix_model import VertixModel
 from data.shapenet import ShapeNet
 
-from pytorch3d.loss import chamfer_distance
-
 import torch.nn as nn
 
 from scipy.optimize import linear_sum_assignment
@@ -35,17 +33,20 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
         for batch_idx, batch in enumerate(train_dataloader):
             # Move batch to device, set optimizer gradients to zero, perform forward pass
-            ShapeNet.move_batch_to_device(batch, device)
+
+            input_sdf, target_vertices, mask, target_edges, edges_adj = batch
+
+            input_sdf = input_sdf.to(config["device"])
+            target_vertices = target_vertices.to(config["device"])
+            mask = mask.to(config["device"])
+            target_edges = target_edges.to(config["device"])
+            edges_adj = edges_adj.to(config["device"])
             optimizer.zero_grad()
-            vertices , _ = model(batch['input_sdf'].float())
+            vertices , _ = model(input_sdf.float())
 
             # Mask out known regions -- only use loss on reconstructed, previously unknown regions
             ###
-            mask = batch["input_mask"]
             
-            target = batch['target_vertices']
-
-            #target[mask != 1] = 0
 
             # Compute loss, Compute gradients, Update network parameters
             #########
@@ -56,25 +57,22 @@ def train(model, train_dataloader, val_dataloader, device, config):
             for b in range(mask.shape[0]):
                 target_size = int(mask[b].sum())
 
-                cost = np.zeros((target_size, config["num_vertices"]))
+                cost = np.zeros((config["num_vertices"], target_size))
                 
-                for i in range(target_size):
-                    for j in range(config["num_vertices"]):
-                        distance = torch.norm(target[b,i] - vertices[b,j])
+                for i in range(config["num_vertices"]):
+                    for j in range(target_size):
+                        distance = torch.norm(target_vertices[b,j] - vertices[b,i])
                         cost[i][j] = distance
 
-                target_idx, vertix_idx = linear_sum_assignment(cost)
+                vertix_idx, target_idx = linear_sum_assignment(cost)
 
-                loss = vertix_loss(vertices[b,vertix_idx], target[b, target_idx])
+                loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
                 batch_loss += loss
 
-            batch_loss /= config["batch_size"]
+            batch_loss /= mask.shape[0]
 
             batch_loss.backward()
-
-            #loss = vertix_loss(vertices,target)
-
             
             optimizer.step()
 
@@ -94,20 +92,27 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 # Evaluation on entire validation set
                 loss_val = 0.
                 num_shapes = 0
+
                 for batch_val in val_dataloader:
-                    ShapeNet.move_batch_to_device(batch_val, device)
+
+
+                    input_sdf, target_vertices, mask, target_edges, edges_adj = batch_val
+
+                    input_sdf = input_sdf.to(config["device"])
+                    target_vertices = target_vertices.to(config["device"])
+                    mask = mask.to(config["device"])
+                    target_edges = target_edges.to(config["device"])
+                    edges_adj = edges_adj.to(config["device"])
 
                     with torch.no_grad():
                         
-                        vertices , _ = model(batch_val['input_sdf'].float())
+                        vertices , _ = model(input_sdf.float())
 
                         # Transform back to metric space
                         # We perform our validation with a pure l1 loss in metric space for better comparability
                         
-                        target = batch_val['target_vertices']
 
                         # Mask out known regions -- only report loss on reconstructed, previously unknown regions
-                        mask = batch_val["input_mask"]
 
                         #target[mask != 1] = 0
 
@@ -117,33 +122,26 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                 
                     for b in range(mask.shape[0]):
-                        
                         target_size = int(mask[b].sum())
 
-
-                        cost = np.zeros((target_size, config["num_vertices"]))
+                        cost = np.zeros((config["num_vertices"], target_size))
                         
-                        for i in range(target_size):
-                            for j in range(config["num_vertices"]):
-                                distance = torch.norm(target[b,i] - vertices[b,j])
+                        for i in range(config["num_vertices"]):
+                            for j in range(target_size):
+                                distance = torch.norm(target_vertices[b,j] - vertices[b,i])
                                 cost[i][j] = distance
 
-                        target_idx, vertix_idx = linear_sum_assignment(cost)
+                        vertix_idx, target_idx = linear_sum_assignment(cost)
 
-                        loss = vertix_loss(vertices[b,vertix_idx], target[b, target_idx])
+                        loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
                         batch_loss += loss
 
-                    #batch_loss /= config["batch_size"]
-
-                    #loss_val += chamfer_distance(vertices, target, x_lengths=mask.sum(axis=-1).long(), y_lengths=mask.sum(axis=-1).long())[0]
-
+                    batch_loss /= config["batch_size"]
 
                     loss_val += batch_loss
 
-                    num_shapes += vertices.shape[0]
-
-                loss_val /= num_shapes
+                loss_val /= len(val_dataloader)
 
                 if loss_val < best_loss_val:
                     torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_best.ckpt')

@@ -8,7 +8,6 @@ import torch.nn as nn
 from model.vertix_edge_model import VertixEdge
 from data.shapenet import ShapeNet
 
-from pytorch3d.loss import chamfer_distance
 
 import pickle
 
@@ -86,6 +85,9 @@ def train(model, train_dataloader, val_dataloader, device, config):
             
             optimizer.step()
 
+            gc.collect()
+
+
             # Logging
             train_loss_running += loss.item()
             train_vertices_loss_running += loss_vertices.item()
@@ -152,7 +154,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 # Set model back to train
                 model.train()
 
-                gc.collect()
 
         scheduler.step()
 
@@ -186,7 +187,7 @@ def main(config):
         train_dataset,   # Datasets return data one sample at a time; Dataloaders use them and aggregate samples into batches
         batch_size=config['batch_size'],   # The size of batches is defined here
         shuffle=True,    # Shuffling the order of samples is useful during training to prevent that the network learns to depend on the order of the input data
-        num_workers=0,   # Data is usually loaded in parallel by num_workers
+        num_workers=4,   # Data is usually loaded in parallel by num_workers
         pin_memory=True,  # This is an implementation detail to speed up data uploading to the GPU
         # worker_init_fn=train_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )
@@ -209,7 +210,7 @@ def main(config):
         val_dataset,     # Datasets return data one sample at a time; Dataloaders use them and aggregate samples into batches
         batch_size=config["batch_size"],   # The size of batches is defined here
         shuffle=False,   # During validation, shuffling is not necessary anymore
-        num_workers=0,   # Data is usually loaded in parallel by num_workers
+        num_workers=4,   # Data is usually loaded in parallel by num_workers
         pin_memory=True,  # This is an implementation detail to speed up data uploading to the GPU
         # worker_init_fn=val_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )

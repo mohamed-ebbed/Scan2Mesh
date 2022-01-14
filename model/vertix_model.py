@@ -9,34 +9,34 @@ class VertixModel(nn.Module):
 
         self.conv_layers_1 = nn.Sequential(
             nn.Conv3d(5,16, 4, 2, 0),
-            #nn.BatchNorm3d(16),
+            nn.BatchNorm3d(16),
             nn.ReLU(inplace=True),
             nn.Conv3d(16,16, 1, 1, 0),
-            #nn.BatchNorm3d(16),
+            nn.BatchNorm3d(16),
             nn.ReLU(inplace=True),
             nn.Conv3d(16,32, 3, 2, 0),
-            #nn.BatchNorm3d(32),
+            nn.BatchNorm3d(32),
             nn.ReLU(inplace=True), 
             nn.Conv3d(32,32, 1, 1, 0),
-            #nn.BatchNorm3d(32),
+            nn.BatchNorm3d(32),
             nn.ReLU(inplace=True)
         )
 
         self.conv_layers_2 = nn.Sequential(
             nn.Conv3d(32,64, 3, 2, 0),
-            #nn.BatchNorm3d(64),
+            nn.BatchNorm3d(64),
             nn.ReLU(inplace=True),
             nn.Conv3d(64,64, 1, 1, 0),
-            #nn.BatchNorm3d(64),
+            nn.BatchNorm3d(64),
             nn.ReLU(inplace=True),
             nn.Conv3d(64,256, 3, 1, 0),
-            #nn.BatchNorm3d(256),
+            nn.BatchNorm3d(256),
             nn.ReLU(inplace=True)
         )
 
         self.linear_layers = nn.Sequential(
             nn.Linear(256,256),
-            #nn.BatchNorm1d(256),
+            nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
             nn.Linear(256,self.output_size*3)
         )
