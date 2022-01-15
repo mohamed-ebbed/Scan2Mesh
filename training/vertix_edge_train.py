@@ -67,64 +67,69 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
             optimizer.zero_grad()
 
-            vertices , edges = model(input_sdf.float(), x_indices, y_indices, edges_adj.float())
+            vertices , edges = model(input_sdf.float(), mask, x_indices, y_indices, edges_adj.float())
+
+            data_train = input_sdf
+
+            target_vertices[mask != 1] = 0
 
 
             vertix_batch_loss = 0
 
-            edge_batch_loss = 0
+            #edge_batch_loss = 0
 
-            edges_matched = torch.ones(mask.shape[0],config["num_vertices"], config["num_vertices"]).requires_grad_(False).to(config["device"]) * -1
+            #edges_matched = torch.ones(mask.shape[0],config["num_vertices"], config["num_vertices"]).requires_grad_(False).to(config["device"]) * -1
             
     
-            for b in range(mask.shape[0]):
+            # for b in range(mask.shape[0]):
 
-                target_size = int(mask[b].sum())
+            #     target_size = int(mask[b].sum())
 
-                cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
-
-
-                vertix_idx, target_idx = linear_sum_assignment(cost)
-
-                for i in range(target_size):
-                    for j in range(target_size):
-                        curr_v_1 = vertix_idx[i]
-                        curr_t_1 = target_idx[i]
-                        curr_v_2 = vertix_idx[j]
-                        curr_t_2 = target_idx[j]
-
-                        edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
+            #     cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
 
 
-                curr_v_loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
+            #     vertix_idx, target_idx = linear_sum_assignment(cost)
+
+            #     for i in range(target_size):
+            #         for j in range(target_size):
+            #             curr_v_1 = vertix_idx[i]
+            #             curr_t_1 = target_idx[i]
+            #             curr_v_2 = vertix_idx[j]
+            #             curr_t_2 = target_idx[j]
+
+            #             edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
 
 
-                vertix_batch_loss += curr_v_loss
+            #     curr_v_loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
+
+
+            #     vertix_batch_loss += curr_v_loss
 
         
-            vertix_batch_loss /= config["batch_size"]
+            # vertix_batch_loss /= vertices.shape[0]
+
+            vertix_batch_loss = vertix_loss(vertices, target_vertices)
 
 
-            loss_vertices = vertix_batch_loss
 
-            loss_edges = cross_entropy(edges, edges_matched.long())
+            #loss_edges = cross_entropy(edges, target_edges.long())
 
-            loss = loss_vertices + loss_edges
+            #loss = loss_vertices + loss_edges
 
-            loss.backward()
+            vertix_batch_loss.backward()
             
             optimizer.step()
 
 
             # Logging
-            train_loss_running += loss.item()
-            train_vertices_loss_running += loss_vertices.item()
-            train_edges_loss_running += loss_edges.item()
+            train_loss_running += vertix_batch_loss.item()
 
             iteration = epoch * len(train_dataloader) + batch_idx
 
+
             if iteration % config['print_every_n'] == (config['print_every_n'] - 1):
-                print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}, train_vertices_loss: {train_vertices_loss_running / config["print_every_n"]:.6f}, train_edges_loss: {train_edges_loss_running / config["print_every_n"]:.6f}')
+                #print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}, train_vertices_loss: {train_vertices_loss_running / config["print_every_n"]:.6f}, train_edges_loss: {train_edges_loss_running / config["print_every_n"]:.6f}')
+                print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}')
                 train_loss_running = 0.
                 train_vertices_loss_running = 0.
                 train_edges_loss_running = 0.
@@ -153,10 +158,16 @@ def train(model, train_dataloader, val_dataloader, device, config):
                     target_edges = target_edges.to(config["device"])
                     edges_adj = edges_adj.to(config["device"])
 
+                    data_val = input_sdf
+
+
+
+                    target_edges[mask!=1] = 0
+
                     with torch.no_grad():
 
                         
-                        vertices , edges = model(input_sdf.float(), x_indices, y_indices, edges_adj.float())
+                        vertices , edges = model(input_sdf.float(), mask, x_indices, y_indices, edges_adj.float())
 
 
                     vertix_batch_loss = 0
@@ -166,51 +177,57 @@ def train(model, train_dataloader, val_dataloader, device, config):
                     edges_matched = torch.ones(mask.shape[0],config["num_vertices"], config["num_vertices"]).requires_grad_(False).to(config["device"]) * -1
 
             
-                    for b in range(mask.shape[0]):
-                        target_size = int(mask[b].sum())
+                    # for b in range(mask.shape[0]):
+                    #     target_size = int(mask[b].sum())
 
-                        cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
-
-
-                        vertix_idx, target_idx = linear_sum_assignment(cost)
-
-                        for i in range(target_size):
-                            for j in range(target_size):
-                                curr_v_1 = vertix_idx[i]
-                                curr_t_1 = target_idx[i]
-                                curr_v_2 = vertix_idx[j]
-                                curr_t_2 = target_idx[j]
-
-                                edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
+                    #     cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
 
 
-                        curr_v_loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
+                    #     vertix_idx, target_idx = linear_sum_assignment(cost)
+
+                    #     for i in range(target_size):
+                    #         for j in range(target_size):
+                    #             curr_v_1 = vertix_idx[i]
+                    #             curr_t_1 = target_idx[i]
+                    #             curr_v_2 = vertix_idx[j]
+                    #             curr_t_2 = target_idx[j]
+
+                    #             edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
 
 
-                        vertix_batch_loss += curr_v_loss
+                    #     curr_v_loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
-                    vertix_batch_loss /= config["batch_size"]
+
+                    #     vertix_batch_loss += curr_v_loss
+
+                    # vertix_batch_loss /= vertices.shape[0]
+
+                    vertix_batch_loss = vertix_loss(vertices, target_vertices)
+
 
 
                     loss_vertices = vertix_batch_loss
 
-                    loss_edges = cross_entropy(edges, edges_matched.long())
+                    #loss_edges = cross_entropy(edges, target_edges.long())
 
                     loss_vertices_val += loss_vertices
-                    loss_edges_val += loss_edges
-                    loss_val += loss_vertices + loss_edges
+                    
+                    #loss_edges_val += loss_edges
+                    #loss_val += loss_vertices + loss_edges
 
+                    loss_val += loss_vertices
 
 
                 loss_val /= len(val_dataloader)
                 loss_vertices_val /= len(val_dataloader)
-                loss_edges_val /= len(val_dataloader)
+                #loss_edges_val /= len(val_dataloader)
 
                 if loss_val < best_loss_val:
                     torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_best.ckpt')
                     best_loss_val = loss_val
 
-                print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
+                #print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
+                print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f}')
 
                 # Set model back to train
                 model.train()
@@ -236,6 +253,8 @@ def main(config):
     if not config.get('train_pickle'):
         train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
         train_dataset.filter_data()
+        if config.get("overfit_single"):
+            train_dataset.items = [train_dataset.items[0],train_dataset.items[1]]
 
     else:
         with open(config["train_pickle"], 'rb') as handle:
@@ -258,6 +277,11 @@ def main(config):
         val_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "val" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
 
         val_dataset.filter_data()
+
+        if config.get("overfit_single"):
+
+            val_dataset.items = [val_dataset.items[0],val_dataset.items[1]]
+
 
     else:
         with open(config["val_pickle"], 'rb') as handle:
