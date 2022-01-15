@@ -67,12 +67,12 @@ class ShapeNet(torch.utils.data.Dataset):
             target_edges[face[2],face[0]] = 1
 
 
-        # for i in range(int(sum(mask)), self.threshold):
+        for i in range(int(sum(mask)), self.threshold):
 
-        #     for j in range(int(sum(mask)), self.threshold):
+            for j in range(int(sum(mask)), self.threshold):
 
-        #         target_edges[i,j] = -1
-        #         target_edges[j,i] = -1
+                target_edges[i,j] = -1
+                target_edges[j,i] = -1
     
 
         input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)

@@ -13,6 +13,9 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance_matrix
 
 
+from pytorch3d.loss import chamfer_distance
+
+
 def train(model, train_dataloader, val_dataloader, device, config):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
@@ -54,23 +57,13 @@ def train(model, train_dataloader, val_dataloader, device, config):
             # Compute loss, Compute gradients, Update network parameters
             #########
 
-            batch_loss = 0
+            loss = 0
 
-    
-            for b in range(mask.shape[0]):
-                target_size = int(mask[b].sum())
-                
-                cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b].clone().cpu().detach())
+            
+            loss = chamfer_distance(vertices,target_vertices)[0]
 
-                vertix_idx, target_idx = linear_sum_assignment(cost)
 
-                loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
-
-                batch_loss += loss
-
-            batch_loss /= mask.shape[0]
-
-            batch_loss.backward()
+            loss.backward()
             
             optimizer.step()
 
@@ -109,22 +102,8 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                     batch_loss = 0
 
-                    target_size = int(mask.sum())
-
                 
-                    for b in range(mask.shape[0]):
-                        target_size = int(mask[b].sum())
-
-                        cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b].clone().cpu().detach())
-
-
-                        vertix_idx, target_idx = linear_sum_assignment(cost)
-
-                        loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
-
-                        batch_loss += loss
-
-                    batch_loss /= config["batch_size"]
+                    loss = chamfer_distance(vertices, target_vertices)
 
                     loss_val += batch_loss
 
