@@ -1,10 +1,10 @@
 {
-    "experiment_name": "vertix_train_hungarian_150",
+    "experiment_name": "vertix_train_hungarian",
     "device": "cuda:0",  
     "is_overfit": false,
     "batch_size": 8,
     "resume_ckpt": false,
-    "learning_rate": 1e-3,
+    "learning_rate": 5e-4,
     "max_epochs": 1000,
     "print_every_n": 100,
     "validate_every_n": 3200,

@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pickle
 
-from training import vertix_edge_train
+from training import edge_train
 
 import argparse
 import json
@@ -21,4 +21,4 @@ args = parser.parse_args()
 with open(args.config, 'r') as f:
   config = json.load(f)
 
-vertix_edge_train.main(config)
+edge_train.main(config)

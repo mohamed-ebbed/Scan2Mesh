@@ -47,6 +47,7 @@ class ShapeNet(torch.utils.data.Dataset):
         input_sdf = np.minimum(np.abs(input_sdf),self.truncation_distance) * np.sign(input_sdf)
 
         steps=np.linspace(-1,1,32)
+
         grid = np.meshgrid(steps, steps, steps, indexing="ij")
 
         
@@ -61,7 +62,7 @@ class ShapeNet(torch.utils.data.Dataset):
         input_sdf = np.abs(input_sdf)
 
         target_edges = np.zeros((self.threshold, self.threshold))
-        edges_adj = np.ones((self.threshold, self.threshold,1))
+        edges_adj = np.ones((1,self.threshold, self.threshold))
 
         for face in faces:
             target_edges[face[0],face[1]] = 1
@@ -133,6 +134,18 @@ class ShapeNet(torch.utils.data.Dataset):
         mask = mask.squeeze()
 
         return np.array(vertices).astype(np.float32), np.array(edges), np.array(faces), mask
+
+    def calculate_weights(self):
+        num_zeros = 0
+        num_ones = 0
+        for i in tqdm.trange(self.__len__()):
+            input_sdf, vertices, mask, target_edges, edges_adj = self.__getitem__(i)
+            num_zeros += (target_edges == 0).sum()
+            num_ones += (target_edges == 1).sum()
+
+        total = num_zeros + num_ones
+
+        return total / num_zeros, total / num_ones
 
 
     def calculate_statistics(self, thresholds):

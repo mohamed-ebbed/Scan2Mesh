@@ -28,14 +28,35 @@ class EdgeModelSimple(nn.Module):
 
         self.node_to_edge1 = NodeToEdge()
 
+        self.edge_to_node = EdgeToNode()
+
+        self.node_to_edge2 = NodeToEdge()
 
 
         self.stage1 = nn.Sequential(
             nn.Conv2d(feature_size*4,feature_size,kernel_size=1),
             nn.ELU(),
             nn.Conv2d(feature_size,feature_size,kernel_size=1),
+            nn.BatchNorm2d(feature_size),
             nn.ELU(),
-            nn.Conv2d(feature_size,2,kernel_size=1),
+            nn.Conv2d(feature_size,feature_size,kernel_size=1),
+        )
+
+        self.stage2= nn.Sequential(
+            nn.Linear(feature_size,feature_size),
+            nn.ELU(),
+            nn.Linear(feature_size,feature_size),
+            nn.ELU(),
+
+        )
+
+        self.stage3 = nn.Sequential(
+            nn.Conv2d(feature_size*3,feature_size,1),
+            nn.ELU(),
+            nn.Conv2d(feature_size,feature_size,1),
+            nn.BatchNorm2d(feature_size),
+            nn.ELU(),
+            nn.Conv2d(feature_size,2,1)
         )
 
 
@@ -83,7 +104,18 @@ class EdgeModelSimple(nn.Module):
 
         stage1_out = self.stage1(x)
 
-        return stage1_out
+        x = self.edge_to_node(stage1_out, adj).transpose(-1,-2)
+
+        stage2_out = self.stage2(x)
+
+
+        stage2_out = self.node_to_edge2(stage2_out, v1s_idx, v2s_idx).transpose(1,3)
+
+        edge_f_concat = torch.cat([stage1_out, stage2_out], axis=1)
+
+        out = self.stage3(edge_f_concat)
+
+        return out
 
 
 

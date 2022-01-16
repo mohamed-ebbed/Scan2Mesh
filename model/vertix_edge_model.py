@@ -16,7 +16,4 @@ class VertixEdge(nn.Module):
     def forward(self, x, mask, v1s_idx, v2s_idx, adj):
         vertices, f2 = self.vertix_model(x)
 
-        vertices[mask != 1] = 0
-
-
         return vertices, self.edge_model(vertices,f2, v1s_idx, v2s_idx, adj)
