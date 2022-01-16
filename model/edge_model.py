@@ -15,18 +15,14 @@ class EdgeModel(nn.Module):
             nn.Linear(3,feature_size),
             nn.ELU(),
             nn.Linear(feature_size,feature_size),
-            nn.BatchNorm1d(feature_size),
             nn.ELU(),
-            #nn.Dropout(0.5),
         )
 
         self.mlp_f2 = nn.Sequential(
             nn.Linear(32,feature_size),
             nn.ELU(),
             nn.Linear(feature_size,feature_size),
-            nn.BatchNorm1d(feature_size),
             nn.ELU(),
-            #nn.Dropout(0.5),
         )
 
 
@@ -42,20 +38,15 @@ class EdgeModel(nn.Module):
             nn.Linear(feature_size*4,feature_size),
             nn.ELU(),
             nn.Linear(feature_size,feature_size),
-            nn.BatchNorm1d(feature_size),
             nn.ELU(),
-            #nn.Dropout(0.5),
         )
 
 
         self.stage2= nn.Sequential(
             nn.Linear(feature_size,feature_size),
-            nn.BatchNorm1d(feature_size),
             nn.ELU(),
             nn.Linear(feature_size,feature_size),
-            nn.BatchNorm1d(feature_size),
             nn.ELU(),
-            #nn.Dropout(0.5)
 
         )
 
@@ -63,7 +54,6 @@ class EdgeModel(nn.Module):
             nn.Linear(feature_size*3,feature_size),
             nn.ELU(),
             nn.Linear(feature_size,feature_size),
-            nn.BatchNorm1d(feature_size),
             nn.ELU(),
             nn.Linear(feature_size,2)
         )

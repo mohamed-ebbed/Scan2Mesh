@@ -12,6 +12,8 @@ from scipy.optimize import linear_sum_assignment
 
 from scipy.spatial import distance_matrix
 
+from torchgeometry.losses.focal import FocalLoss
+
 
 
 import pickle
@@ -47,7 +49,7 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
 
 
-    cross_entropy = nn.CrossEntropyLoss(ignore_index=-1)
+    cross_entropy = nn.CrossEntropyLoss(ignore_index=-1,reduction='sum')
 
 
     vertix_loss = nn.L1Loss()
@@ -110,19 +112,20 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
             vertix_batch_loss = vertix_loss(vertices, target_vertices)
 
+            loss_edges = cross_entropy(edges, target_edges.long())
 
 
-            #loss_edges = cross_entropy(edges, target_edges.long())
+            loss = vertix_batch_loss + loss_edges
 
-            #loss = loss_vertices + loss_edges
-
-            vertix_batch_loss.backward()
+            loss.backward()
             
             optimizer.step()
 
 
             # Logging
-            train_loss_running += vertix_batch_loss.item()
+            train_loss_running += loss.item()
+            #train_vertices_loss_running += vertix_batch_loss.item()
+            train_edges_loss_running += loss_edges.item()
 
             iteration = epoch * len(train_dataloader) + batch_idx
 
@@ -200,34 +203,33 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                     #     vertix_batch_loss += curr_v_loss
 
-                    # vertix_batch_loss /= vertices.shape[0]
 
                     vertix_batch_loss = vertix_loss(vertices, target_vertices)
 
 
 
-                    loss_vertices = vertix_batch_loss
+                    #loss_vertices = vertix_batch_loss
 
-                    #loss_edges = cross_entropy(edges, target_edges.long())
+                    loss_edges = cross_entropy(edges, target_edges.long())
 
-                    loss_vertices_val += loss_vertices
+                    #loss_vertices_val += loss_vertices
                     
-                    #loss_edges_val += loss_edges
+                    loss_edges_val += loss_edges
                     #loss_val += loss_vertices + loss_edges
 
-                    loss_val += loss_vertices
+                    loss_val += loss_edges
 
 
                 loss_val /= len(val_dataloader)
-                loss_vertices_val /= len(val_dataloader)
-                #loss_edges_val /= len(val_dataloader)
+                #loss_vertices_val /= len(val_dataloader)
+                loss_edges_val /= len(val_dataloader)
 
                 if loss_val < best_loss_val:
                     torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_best.ckpt')
                     best_loss_val = loss_val
 
                 #print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
-                print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f}')
+                print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_edges: {loss_edges_val:.6f}')
 
                 # Set model back to train
                 model.train()
@@ -254,7 +256,8 @@ def main(config):
         train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
         train_dataset.filter_data()
         if config.get("overfit_single"):
-            train_dataset.items = [train_dataset.items[0],train_dataset.items[1]]
+            train_dataset.items = [train_dataset.items[1]]
+
 
     else:
         with open(config["train_pickle"], 'rb') as handle:
@@ -280,7 +283,7 @@ def main(config):
 
         if config.get("overfit_single"):
 
-            val_dataset.items = [val_dataset.items[0],val_dataset.items[1]]
+            val_dataset.items = [val_dataset.items[1]]
 
 
     else:

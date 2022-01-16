@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from model.edge_model import *
+from model.edge_model_simple import *
 
 from model.vertix_model import *
 
@@ -11,7 +11,7 @@ class VertixEdge(nn.Module):
 
         self.vertix_model = VertixModel(num_vertices)
 
-        self.edge_model = EdgeModel(feature_size)
+        self.edge_model = EdgeModelSimple(feature_size)
 
     def forward(self, x, mask, v1s_idx, v2s_idx, adj):
         vertices, f2 = self.vertix_model(x)

@@ -58,6 +58,8 @@ class ShapeNet(torch.utils.data.Dataset):
 
         sign = np.sign(input_sdf)
 
+        input_sdf = np.abs(input_sdf)
+
         target_edges = np.zeros((self.threshold, self.threshold))
         edges_adj = np.ones((self.threshold, self.threshold,1))
 

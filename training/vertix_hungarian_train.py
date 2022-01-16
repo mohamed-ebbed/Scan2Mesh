@@ -12,13 +12,15 @@ from scipy.optimize import linear_sum_assignment
 
 from scipy.spatial import distance_matrix
 
-
-from pytorch3d.loss import chamfer_distance
+import pickle
 
 
 def train(model, train_dataloader, val_dataloader, device, config):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+
 
     # Here, we follow the original implementation to also use a learning rate scheduler -- it simply reduces the learning rate to half every 20 epochs
     #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
@@ -38,32 +40,36 @@ def train(model, train_dataloader, val_dataloader, device, config):
         train_loss_running = 0.
 
         for batch_idx, batch in enumerate(train_dataloader):
-            # Move batch to device, set optimizer gradients to zero, perform forward pass
 
             input_sdf, target_vertices, mask, target_edges, edges_adj = batch
 
             input_sdf = input_sdf.to(config["device"])
             target_vertices = target_vertices.to(config["device"])
             mask = mask.to(config["device"])
-            target_edges = target_edges.to(config["device"]).reshape(-1)
+            target_edges = target_edges.to(config["device"])
             edges_adj = edges_adj.to(config["device"])
             optimizer.zero_grad()
             vertices , _ = model(input_sdf.float())
 
-            # Mask out known regions -- only use loss on reconstructed, previously unknown regions
-            ###
-            
+        
 
-            # Compute loss, Compute gradients, Update network parameters
-            #########
+            batch_loss = 0
 
-            loss = 0
+    
+            for b in range(mask.shape[0]):
+                target_size = int(mask[b].sum())
+                
+                cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
 
-            
-            loss = chamfer_distance(vertices,target_vertices)[0]
+                vertix_idx, target_idx = linear_sum_assignment(cost)
 
+                loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
-            loss.backward()
+                batch_loss += loss
+
+            batch_loss /= mask.shape[0]
+
+            batch_loss.backward()
             
             optimizer.step()
 
@@ -75,14 +81,10 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}')
                 train_loss_running=0
 
-            # Validation evaluation and logging
             if iteration % config['validate_every_n'] == (config['validate_every_n'] - 1):
-                # Set model to eval
                 model.eval()
 
-                # Evaluation on entire validation set
                 loss_val = 0.
-                num_shapes = 0
 
                 for batch_val in val_dataloader:
 
@@ -92,7 +94,7 @@ def train(model, train_dataloader, val_dataloader, device, config):
                     input_sdf = input_sdf.to(config["device"])
                     target_vertices = target_vertices.to(config["device"])
                     mask = mask.to(config["device"])
-                    target_edges = target_edges.to(config["device"]).reshape(-1)
+                    target_edges = target_edges.to(config["device"])
                     edges_adj = edges_adj.to(config["device"])
 
                     with torch.no_grad():
@@ -102,8 +104,22 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                     batch_loss = 0
 
+                    target_size = int(mask.sum())
+
                 
-                    loss = chamfer_distance(vertices, target_vertices)
+                    for b in range(mask.shape[0]):
+                        target_size = int(mask[b].sum())
+
+                        cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
+
+
+                        vertix_idx, target_idx = linear_sum_assignment(cost)
+
+                        loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
+
+                        batch_loss += loss
+
+                    batch_loss /= config["batch_size"]
 
                     loss_val += batch_loss
 
@@ -115,10 +131,9 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                 print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f}')
 
-                # Set model back to train
                 model.train()
+        scheduler.step()
 
-        #scheduler.step()
 
 
 def main(config):
@@ -131,9 +146,17 @@ def main(config):
 
 
     # Create Dataloaders
-    train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
 
-    train_dataset.filter_data()
+    if not config.get('train_pickle'):
+        train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
+        train_dataset.filter_data()
+        if config.get("overfit_single"):
+            train_dataset.items = [train_dataset.items[1]]
+
+
+    else:
+        with open(config["train_pickle"], 'rb') as handle:
+            train_dataset = pickle.load(handle)
 
     train_dataset.calculate_class_statistics()
 
@@ -147,9 +170,21 @@ def main(config):
         # worker_init_fn=train_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )
 
-    val_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "val" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories = config["num_trajectories"])
+    if not config.get('val_pickle'):
 
-    val_dataset.filter_data()
+        val_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "val" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
+
+        val_dataset.filter_data()
+
+        if config.get("overfit_single"):
+
+            val_dataset.items = [val_dataset.items[1]]
+
+
+    else:
+        with open(config["val_pickle"], 'rb') as handle:
+            val_dataset = pickle.load(handle)
+
 
     val_dataset.calculate_class_statistics()
 
@@ -167,7 +202,7 @@ def main(config):
     model = VertixModel(config["num_vertices"])
 
     # Load model if resuming from checkpoint
-    if config['resume_ckpt'] is not None:
+    if config['resume_ckpt'] is not False:
         model.load_state_dict(torch.load(config['resume_ckpt'], map_location='cpu'))
 
     # Move model to specified device
