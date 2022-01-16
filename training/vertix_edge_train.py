@@ -164,9 +164,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
                     data_val = input_sdf
 
 
-
-                    target_edges[mask!=1] = 0
-
                     with torch.no_grad():
 
                         
