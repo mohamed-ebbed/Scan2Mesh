@@ -47,11 +47,9 @@ def train(model, train_dataloader, val_dataloader, device, config):
     vertix_loss_running = 0.
     edges_loss_running = 0.
 
+    weight = torch.FloatTensor([1,27]).requires_grad_(False).to(config["device"])
 
-
-
-
-    cross_entropy = nn.CrossEntropyLoss()
+    cross_entropy = nn.CrossEntropyLoss(weight=weight)
 
     l1_loss = nn.L1Loss()
 
@@ -98,12 +96,14 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                 loss_vertices += l1_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
-            loss_vertices /= mask.shape[0]
+            #loss_vertices /= mask.shape[0]
 
             loss_edges = cross_entropy(edges, edges_matched.long())
 
 
-            loss = loss_edges + loss_vertices
+            #loss = loss_edges + loss_vertices
+
+            loss = loss_edges
 
             loss.backward()
             
@@ -113,15 +113,17 @@ def train(model, train_dataloader, val_dataloader, device, config):
             # Logging
             train_loss_running += loss.item()
 
-            vertix_loss_running += loss_vertices
+            #vertix_loss_running += loss_vertices
 
-            edges_loss_running += loss_edges
+            #edges_loss_running += loss_edges
 
             iteration = epoch * len(train_dataloader) + batch_idx
 
 
             if iteration % config['print_every_n'] == (config['print_every_n'] - 1):
-                print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}, train_vertices_loss: {vertix_loss_running / config["print_every_n"]:.6f}, train_edges_loss: {edges_loss_running / config["print_every_n"]:.6f}')
+                #print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}, train_vertices_loss: {vertix_loss_running / config["print_every_n"]:.6f}, train_edges_loss: {edges_loss_running / config["print_every_n"]:.6f}')
+                print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}')
+               
                 train_loss_running = 0.
                 vertix_loss_running = 0.
                 edges_loss_running = 0.
@@ -181,35 +183,36 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                                 edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
 
-                        vertix_loss += l1_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
+                        #vertix_loss += l1_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
 
                         
-                    vertix_loss /= mask.shape[0]
+                    #vertix_loss /= mask.shape[0]
 
                     loss_edges = cross_entropy(edges, edges_matched.long())
 
                     loss_edges_val += loss_edges
 
-                    loss_vertices_val += vertix_loss
+                    #loss_vertices_val += vertix_loss
                     
-                    loss_val += vertix_loss + loss_edges
+                    #loss_val += vertix_loss + loss_edges
+
+                    loss_val += loss_edges
 
 
                 loss_val /= len(val_dataloader)
-                loss_edges_val /= len(val_dataloader)
-                loss_vertices_val /= len(val_dataloader)
 
                 if loss_val < best_loss_val:
                     torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_best.ckpt')
                     best_loss_val = loss_val
 
-                print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
+                #print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
+                print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f}')
 
                 model.train()
 
 
-        #scheduler.step()
+        scheduler.step()
 
 
 
@@ -264,6 +267,8 @@ def main(config):
         with open(config["val_pickle"], 'rb') as handle:
             val_dataset = pickle.load(handle)
 
+    
+
 
     val_dataset.calculate_class_statistics()
 
@@ -278,7 +283,12 @@ def main(config):
     )
 
     # Instantiate model
+
     model = VertixEdge(config["num_vertices"], config["feature_size"])
+
+    model.vertix_model.load_state_dict(torch.load(config['vertix_checkpoint'], map_location="cpu"))
+
+    model.vertix_model.requires_grad_(False)
 
     #model.vertix_model.load_state_dict(torch.load(config["vertix_checkpoint"], map_location='cpu'))
 

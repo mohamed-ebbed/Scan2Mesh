@@ -1,5 +1,5 @@
 {
-    "experiment_name": "vertix_edge_joint_hungarian",
+    "experiment_name": "vertix_edge_hungarian_train",
     "device": "cuda:0",  
     "is_overfit": false,
     "batch_size": 8,

@@ -64,6 +64,7 @@ class ShapeNet(torch.utils.data.Dataset):
         target_edges = np.zeros((self.threshold, self.threshold))
         edges_adj = np.ones((self.threshold, self.threshold,1))
 
+
         for face in faces:
             target_edges[face[0],face[1]] = 1
             target_edges[face[1],face[2]] = 1
