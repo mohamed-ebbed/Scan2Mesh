@@ -1,0 +1,16 @@
+ipython==8.0.0
+k3d==2.11.0
+matplotlib==3.5.0
+moviepy==1.0.1
+numpy==1.20.3
+Pillow==9.0.0
+pybullet==3.2.1
+pyrender==0.1.45
+pytorch3d==0.3.0
+scikit_image==0.18.3
+scipy==1.1.0
+skimage==0.0
+torch==1.10.1
+torchgeometry==0.1.2
+tqdm==4.43.0
+trimesh==3.9.36
