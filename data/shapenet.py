@@ -8,12 +8,16 @@ import os
 import trimesh
 import tqdm
 
+from scipy.optimize import linear_sum_assignment
+
+from scipy.spatial import distance_matrix
+
 
 class ShapeNet(torch.utils.data.Dataset):
 
     num_classes = 8
 
-    def __init__(self, sdf_path, meshes_path, class_mapping, split, threshold, num_trajectories):
+    def __init__(self, sdf_path, meshes_path, class_mapping, split, threshold, num_trajectories, face_mode=False):
 
         super().__init__()
         self.sdf_path = sdf_path
@@ -31,69 +35,104 @@ class ShapeNet(torch.utils.data.Dataset):
 
         self.num_trajectories = num_trajectories
 
+        self.face_mode = face_mode
+
+        self.edges_path = "./data/shapenet_edges"
+
 
     def __getitem__(self, index):
 
         sdf_id = self.items[index].split()[0]
         shape_id = sdf_id[:sdf_id.find("_")]
 
-        input_sdf = self.get_shape_sdf(sdf_id)
-
 
         vertices, edges, faces, mask = self.get_shape_mesh(shape_id)
 
-        
-
-        input_sdf = np.minimum(np.abs(input_sdf),self.truncation_distance) * np.sign(input_sdf)
-
-        steps=np.linspace(-1,1,32)
-
-        grid = np.meshgrid(steps, steps, steps, indexing="ij")
+        if self.face_mode:
+            predicted_vertices, predicted_edges, predicted_faces, mask = self.get_shape_mesh(shape_id, load_edges_mesh=self.face_mode)
 
         
-        xs = np.expand_dims(grid[0],0)
-        ys = np.expand_dims(grid[1],0)
-        zs = np.expand_dims(grid[2],0)
 
-        input_sdf = np.expand_dims(input_sdf, 0)
+        if not self.face_mode:
 
-        sign = np.sign(input_sdf)
+            input_sdf = np.minimum(np.abs(input_sdf),self.truncation_distance) * np.sign(input_sdf)
 
-        input_sdf = np.abs(input_sdf)
+            steps=np.linspace(-1,1,32)
 
-        target_edges = np.zeros((self.threshold, self.threshold))
-        edges_adj = np.ones((self.threshold, self.threshold,1))
+            grid = np.meshgrid(steps, steps, steps, indexing="ij")
+
+            
+            xs = np.expand_dims(grid[0],0)
+            ys = np.expand_dims(grid[1],0)
+            zs = np.expand_dims(grid[2],0)
+
+            input_sdf = np.expand_dims(input_sdf, 0)
+
+            sign = np.sign(input_sdf)
+
+            input_sdf = np.abs(input_sdf)
+
+            target_edges = np.zeros((self.threshold, self.threshold))
+            edges_adj = np.ones((self.threshold, self.threshold,1))
 
 
-        for face in faces:
-            target_edges[face[0],face[1]] = 1
-            target_edges[face[1],face[2]] = 1
-            target_edges[face[2],face[0]] = 1
+
+            for face in faces:
+                target_edges[face[0],face[1]] = 1
+                target_edges[face[1],face[2]] = 1
+                target_edges[face[2],face[0]] = 1
+
+            target_size = int(sum(mask))
+
+            for i in range(target_size,self.threshold):
+                for j in range(target_size, self.threshold):
+                    target_edges[i][j] = -1
 
 
-        # for i in range(int(sum(mask)), self.threshold):
 
-        #     for j in range(int(sum(mask)), self.threshold):
+            input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)
+            return shape_id, input_sdf, vertices, mask, target_edges, edges_adj
 
-        #         target_edges[i,j] = -1
-        #         target_edges[j,i] = -1
-    
+        else:
 
-        input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)
 
-        return input_sdf, vertices, mask, target_edges, edges_adj
+            edge_idx = trimesh.graph.face_adjacency(predicted_faces)
+
+            hv = np.zeros((len(predicted_faces),7))
+
+            for i in range(len(predicted_faces)):
+
+
+                
+                curr_face = predicted_faces[i]
+
+                v1 = predicted_vertices[curr_face[0]]
+
+                v2 = predicted_vertices[curr_face[1]]
+
+                v3 = predicted_vertices[curr_face[2]]
+
+                centroid = (v1+v2+v3) / 3
+
+                radius = np.linalg.norm(v2 - v1) + np.linalg.norm(v3 - v2) + np.linalg.norm(v3 - v1)
+
+                normal = np.cross(v2 - v1, v3-v2)
+
+
+                hv[i] = np.array([centroid[0], centroid[1], centroid[2], normal[0], normal[1], normal[2], radius])
+
+            
+
+
+                    
+            return predicted_vertices, predicted_faces, edge_idx, hv, faces
+
+
+            
 
     def __len__(self):
         return len(self.items)
 
-
-    # @staticmethod
-    # def move_batch_to_device(batch, device):
-    #     batch['input_sdf'] = batch['input_sdf'].to(device)
-    #     batch['target_vertices'] = batch['target_vertices'].to(device)
-    #     batch['input_mask'] = batch['input_mask'].to(device)
-    #     batch['target_edges'] = batch['target_edges'].to(device)
-    #     batch['edges_adj'] = batch['edges_adj'].to(device)
 
     def get_shape_sdf(self,shapenet_id):
         sdf = None
@@ -107,15 +146,19 @@ class ShapeNet(torch.utils.data.Dataset):
 
         return sdf
 
-    def get_shape_mesh(self,shapenet_id):
+    def get_shape_mesh(self,shapenet_id,load_edges_mesh=False):
         
         class_id = shapenet_id.split("/")[0]
 
         shape_id = shapenet_id.split("/")[1]
 
+        if not load_edges_mesh:
+            file_name = f"{class_id}/{shape_id}/{shape_id}.obj"
+            file_path = os.path.join(self.meshes_path, file_name)
 
-        file_name = f"{class_id}/{shape_id}/{shape_id}.obj"
-        file_path = os.path.join(self.meshes_path, file_name)
+        else:
+            file_name = f"{class_id}/{shape_id}.obj"
+            file_path = os.path.join(self.edges_path, file_name)
 
         mesh = trimesh.load(file_path)
         vertices = mesh.vertices
@@ -270,6 +313,7 @@ class ShapeNet(torch.utils.data.Dataset):
 
         for cls, cnt in classes_statistics.items():
             print("Class {} has {} shapes".format(cls, cnt))
+
 
 
 

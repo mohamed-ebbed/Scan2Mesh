@@ -15,6 +15,4 @@
     "num_vertices": 100,
     "feature_size": 512,
     "num_trajectories": 2,
-    "train_pickle": "./train_100_2.pickle",
-    "val_pickle": "./val_100_2.pickle"
 }
