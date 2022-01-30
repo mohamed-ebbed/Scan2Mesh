@@ -45,6 +45,11 @@ class ShapeNet(torch.utils.data.Dataset):
         sdf_id = self.items[index].split()[0]
         shape_id = sdf_id[:sdf_id.find("_")]
 
+        input_sdf = self.get_shape_sdf(sdf_id)
+
+        original_sdf = input_sdf
+
+
 
         vertices, edges, faces, mask = self.get_shape_mesh(shape_id)
 
@@ -91,7 +96,7 @@ class ShapeNet(torch.utils.data.Dataset):
 
 
             input_sdf = np.concatenate([input_sdf, sign, xs, ys, zs], axis=0)
-            return shape_id, input_sdf, vertices, mask, target_edges, edges_adj
+            return shape_id, original_sdf, input_sdf, vertices, mask, target_edges, edges_adj
 
         else:
 
