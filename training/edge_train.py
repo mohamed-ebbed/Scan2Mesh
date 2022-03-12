@@ -58,7 +58,7 @@ def train(model, train_dataloader, val_dataloader, device, config):
         for batch_idx, batch in enumerate(train_dataloader):
             # Move batch to device, set optimizer gradients to zero, perform forward pass
 
-            _, input_sdf, target_vertices, mask, target_edges, edges_adj = batch
+            _, _, input_sdf, target_vertices, mask, target_edges, edges_adj = batch
 
             input_sdf = input_sdf.to(config["device"])
             target_vertices = target_vertices.to(config["device"])
@@ -141,7 +141,7 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                 for batch_val in val_dataloader:
 
-                    _, input_sdf, target_vertices, mask, target_edges, edges_adj = batch_val
+                    _, _,  input_sdf, target_vertices, mask, target_edges, edges_adj = batch_val
 
                     input_sdf = input_sdf.to(config["device"])
                     target_vertices = target_vertices.to(config["device"])
