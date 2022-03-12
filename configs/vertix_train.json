@@ -1,11 +1,11 @@
 {
-    "experiment_name": "vertix_edge_training_l1_greedy",
+    "experiment_name": "vertix_model",
     "device": "cuda:0",  
     "is_overfit": false,
     "batch_size": 8,
     "resume_ckpt": false,
     "learning_rate": 5e-4,
-    "max_epochs": 5000,
+    "max_epochs": 1000,
     "print_every_n": 100,
     "validate_every_n": 3200,
     "sdf_path": "data/shapenet_dim32_sdf",
@@ -14,7 +14,5 @@
     "split": "train",
     "num_vertices": 100,
     "feature_size": 512,
-    "num_trajectories": 2,
-    "train_pickle": "./train_100_2.pickle",
-    "val_pickle": "./val_100_2.pickle"
+    "num_trajectories": 2
 }

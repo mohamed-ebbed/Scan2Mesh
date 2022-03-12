@@ -47,7 +47,7 @@ args = parser.parse_args()
 with open(args.config, 'r') as f:
   config = json.load(f)
 
-inferer = InferenceHandlerVertixEdgeModel('runs/vertix_edge_hungarian_train/model_best.ckpt', config["num_vertices"], config["feature_size"], config["device"])
+inferer = InferenceHandlerVertixEdgeModel('runs/edge_model/model_best.ckpt', config["num_vertices"], config["feature_size"], config["device"])
 
 train_dataset = ShapeNet(sdf_path=config["sdf_path"],meshes_path=config["meshes_path"], class_mapping=config["class_mapping"], split = "train" if not config["is_overfit"] else "overfit", threshold=config["num_vertices"], num_trajectories=config["num_trajectories"])
 
