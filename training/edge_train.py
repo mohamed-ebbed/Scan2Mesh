@@ -95,12 +95,8 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                 loss_vertices += l1_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
-            #loss_vertices /= mask.shape[0]
 
             loss_edges = cross_entropy(edges, edges_matched.long())
-
-
-            #loss = loss_edges + loss_vertices
 
             loss = loss_edges
 
@@ -111,10 +107,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
             # Logging
             train_loss_running += loss.item()
-
-            #vertix_loss_running += loss_vertices
-
-            #edges_loss_running += loss_edges
 
             iteration = epoch * len(train_dataloader) + batch_idx
 
@@ -182,20 +174,14 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
                                 edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
 
-                        #vertix_loss += l1_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
 
 
                         
-                    #vertix_loss /= mask.shape[0]
 
                     loss_edges = cross_entropy(edges, edges_matched.long())
 
                     loss_edges_val += loss_edges
-
-                    #loss_vertices_val += vertix_loss
                     
-                    #loss_val += vertix_loss + loss_edges
-
                     loss_val += loss_edges
 
 
@@ -207,7 +193,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
                 torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_last.ckpt')
 
 
-                #print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
                 print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f}')
 
                 model.train()
@@ -280,7 +265,6 @@ def main(config):
         shuffle=False,   # During validation, shuffling is not necessary anymore
         num_workers=4,   # Data is usually loaded in parallel by num_workers
         pin_memory=True,  # This is an implementation detail to speed up data uploading to the GPU
-        # worker_init_fn=val_dataset.worker_init_fn  TODO: Uncomment this line if you are using shapenet_zip on Google Colab
     )
 
     # Instantiate model
@@ -291,9 +275,6 @@ def main(config):
 
     model.vertix_model.requires_grad_(False)
 
-    #model.vertix_model.load_state_dict(torch.load(config["vertix_checkpoint"], map_location='cpu'))
-
-    #model.vertix_model.requires_grad_(False)
 
     # Load model if resuming from checkpoint
     if config['resume_ckpt'] is not False:

@@ -35,7 +35,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
 
-    # Here, we follow the original implementation to also use a learning rate scheduler -- it simply reduces the learning rate to half every 20 epochs
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     x_indices = []

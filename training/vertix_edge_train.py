@@ -26,7 +26,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
 
-    # Here, we follow the original implementation to also use a learning rate scheduler -- it simply reduces the learning rate to half every 20 epochs
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     x_indices = []
@@ -42,7 +41,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
     best_loss_val = np.inf
 
-    # Keep track of running average of train loss for printing
     train_loss_running = 0.
     train_vertices_loss_running = 0.
     train_edges_loss_running = 0.
@@ -78,37 +76,6 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
             vertix_batch_loss = 0
 
-            #edge_batch_loss = 0
-
-            #edges_matched = torch.ones(mask.shape[0],config["num_vertices"], config["num_vertices"]).requires_grad_(False).to(config["device"]) * -1
-            
-    
-            # for b in range(mask.shape[0]):
-
-            #     target_size = int(mask[b].sum())
-
-            #     cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
-
-
-            #     vertix_idx, target_idx = linear_sum_assignment(cost)
-
-            #     for i in range(target_size):
-            #         for j in range(target_size):
-            #             curr_v_1 = vertix_idx[i]
-            #             curr_t_1 = target_idx[i]
-            #             curr_v_2 = vertix_idx[j]
-            #             curr_t_2 = target_idx[j]
-
-            #             edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
-
-
-            #     curr_v_loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
-
-
-            #     vertix_batch_loss += curr_v_loss
-
-        
-            # vertix_batch_loss /= vertices.shape[0]
 
             vertix_batch_loss = vertix_loss(vertices, target_vertices)
 
@@ -124,14 +91,12 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
             # Logging
             train_loss_running += loss.item()
-            #train_vertices_loss_running += vertix_batch_loss.item()
             train_edges_loss_running += loss_edges.item()
 
             iteration = epoch * len(train_dataloader) + batch_idx
 
 
             if iteration % config['print_every_n'] == (config['print_every_n'] - 1):
-                #print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}, train_vertices_loss: {train_vertices_loss_running / config["print_every_n"]:.6f}, train_edges_loss: {train_edges_loss_running / config["print_every_n"]:.6f}')
                 print(f'[{epoch:03d}/{batch_idx:05d}] train_loss: {train_loss_running / config["print_every_n"]:.6f}')
                 train_loss_running = 0.
                 train_vertices_loss_running = 0.
@@ -175,57 +140,28 @@ def train(model, train_dataloader, val_dataloader, device, config):
 
 
                     edges_matched = torch.ones(mask.shape[0],config["num_vertices"], config["num_vertices"]).requires_grad_(False).to(config["device"]) * -1
-
-            
-                    # for b in range(mask.shape[0]):
-                    #     target_size = int(mask[b].sum())
-
-                    #     cost = distance_matrix(vertices[b].clone().cpu().detach(), target_vertices[b,:target_size].clone().cpu().detach())
-
-
-                    #     vertix_idx, target_idx = linear_sum_assignment(cost)
-
-                    #     for i in range(target_size):
-                    #         for j in range(target_size):
-                    #             curr_v_1 = vertix_idx[i]
-                    #             curr_t_1 = target_idx[i]
-                    #             curr_v_2 = vertix_idx[j]
-                    #             curr_t_2 = target_idx[j]
-
-                    #             edges_matched[b,curr_v_1,curr_v_2] = target_edges[b,curr_t_1,curr_t_2]
-
-
-                    #     curr_v_loss = vertix_loss(vertices[b,vertix_idx], target_vertices[b, target_idx])
-
-
-                    #     vertix_batch_loss += curr_v_loss
-
+  
 
                     vertix_batch_loss = vertix_loss(vertices, target_vertices)
 
 
 
-                    #loss_vertices = vertix_batch_loss
 
                     loss_edges = cross_entropy(edges, target_edges.long())
 
-                    #loss_vertices_val += loss_vertices
                     
                     loss_edges_val += loss_edges
-                    #loss_val += loss_vertices + loss_edges
 
                     loss_val += loss_edges
 
 
                 loss_val /= len(val_dataloader)
-                #loss_vertices_val /= len(val_dataloader)
                 loss_edges_val /= len(val_dataloader)
 
                 if loss_val < best_loss_val:
                     torch.save(model.state_dict(), f'runs/{config["experiment_name"]}/model_best.ckpt')
                     best_loss_val = loss_val
 
-                #print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_vertices: {loss_vertices_val:.6f} | loss_edges: {loss_edges_val:.6f}')
                 print(f'[{epoch:03d}/{batch_idx:05d}] val_loss: {loss_val:.6f} | best_loss_val: {best_loss_val:.6f} | loss_edges: {loss_edges_val:.6f}')
 
                 # Set model back to train
